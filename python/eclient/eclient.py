@@ -4,14 +4,18 @@ from base import *
 from listen import listen
 from refresh import refresh
 from http import http
+from login import login
 from cStringIO import StringIO
 
 class client:
-    def __init__(self, user, password, host):
+    def __init__(self, user, password, host, port):
         self.debug = 0
         self.frequency = 0.1
         self.user = user
         self.password = password
+        self.host = host
+        self.port = port
+        self.cerror = None
 
         '''
         self.contacts = {}
@@ -32,7 +36,7 @@ class client:
         self.listenSocket_voip = None
         self.refresher = None
         self.http = None
-        self.cerror = None
+
         self.ip = ''
         self.localip = ''
         self.on_message = None
@@ -41,7 +45,7 @@ class client:
         
 
     def login ( self, initstatus, info_function ):
-        elogin = login ( user, host, self.debug)
+        elogin = login ( self.user, self.password, self.host, self.debug)
 
 
     def open_listenport ( self, port, maxconn, timeout ):

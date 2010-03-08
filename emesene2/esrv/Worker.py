@@ -30,14 +30,14 @@ class Worker(e3.Worker):
 
         self.port = 1864
 
-        self.debug = 1
+        self.debug = 3
         self.frequency = 0.1
 
         self.host = session.DEFAULT_HOST
-        self.port = session.DEFAULT_PORT
+        self.hport = session.DEFAULT_PORT
 
-        print self.session.config_dir.base_dir
-        self.caches = e3.cache.CacheManager(self.session.config_dir.base_dir)
+        #print self.session.config_dir.base_dir
+        #self.caches = e3.cache.CacheManager(self.session.config_dir.base_dir)
 
     def run(self):
 			'''main method, block waiting for data, process it, and send data back
@@ -114,6 +114,142 @@ class Worker(e3.Worker):
         """
         self.session.groups[group].contacts.append(account)
         self.session.contacts.contacts[account].groups.append(group)
+
+    def _eclient_login_info (self, info ):
+        self.session.add_event(e3.Event.EVENT_LOGIN_INFO, info)
+
+    def _eclient_refresh_contact (self, contact_info ):
+
+        if self.debug>1: print "[worker] Refresh contact: "+contact_info['user']
+
+        status = contact_info['status']
+        user = contact_info['user']
+        subnick = contact_info['subnick']
+        nick = contact_info['nick']
+        avatar = contact_info['avatar']
+
+        currentStamp = self.eclient.getStamp ()
+
+        dif = currentStamp - int (contact_info['stamp'])
+
+        if self.debug>1: print "CurrentStamp: "+str(currentStamp)+", ContactStamp: "+str(contact_info['stamp'])+" Dif: "+str ( dif )
+
+        if dif > 30:
+            status = e3.status.OFFLINE
+
+        if ( int (contact_info['stamp']) == 0 ):
+            status = e3.status.OFFLINE
+
+        self.contacts[ user ] = contact_info
+
+        if status == eclient.status.OFFLINE:
+            change_type = 'offline'
+        else:
+            change_type = 'online'
+
+        if self.debug>1: print "Status: "+str(status)
+
+        if status == eclient.status.ONLINE:
+            e3status = e3.status.ONLINE
+        elif status == eclient.status.BUSY:
+            e3status = e3.status.BUSY
+        elif status == eclient.status.AWAY:
+            e3status = e3.status.AWAY
+        elif status == eclient.status.IDLE:
+            e3status = e3.status.IDLE
+        else:
+            e3status = e3.status.OFFLINE
+
+        #old_status = e3.status.OFFLINE
+        #status = e3.status.ONLINE
+
+        contactOb = self.session.contacts.contacts.get( user , None)
+
+        avatars = self.caches.get_avatar_cache( user )
+        avatar_path = os.path.join(avatars.path, avatar)
+
+        old_e3status = contactOb.status
+        old_subnick = contactOb.message
+        old_nick = contactOb.nick
+        old_avatar = contactOb.picture
+        old_media = 'Old'
+        media = 'New'
+
+        contactOb.status = e3status
+        contactOb.message = subnick
+        contactOb.nick = nick
+        contactOb.media = media
+
+        if self.debug>1: print "[worker] Offline="+str(e3.status.OFFLINE)+", Changetipe="+change_type+", Old status: "+str(old_e3status)+", New: "+str(e3status)
+
+        log_account =  e3.Logger.Account(contactOb.attrs.get('CID', None), None,
+            contactOb.account, contactOb.status, contactOb.nick, contactOb.message,
+            contactOb.picture)
+
+        #str(old_status)
+        if old_e3status != e3status:
+            if self.debug>0: print "[worker] Changing Status"
+
+            start_time = 1
+
+            do_notify = (start_time + Worker.NOTIFICATION_DELAY) < time.time()
+
+            self.session.add_event(e3.Event.EVENT_CONTACT_ATTR_CHANGED, user, change_type, old_e3status, do_notify)
+            self.session.logger.log('status change', e3status, str(e3status),
+                log_account)
+
+        if old_subnick != subnick:
+            if self.debug>0: print "[worker] Changing Subnick: "+subnick
+            self.session.add_event(e3.Event.EVENT_CONTACT_ATTR_CHANGED, user,
+                'message', old_subnick)
+            self.session.logger.log('message change', e3status,
+                subnick, log_account)
+
+        if old_nick != nick:
+            if self.debug>0: print "[worker] Changing Nick: "+nick
+            self.session.add_event(e3.Event.EVENT_CONTACT_ATTR_CHANGED, user,
+                'nick', old_nick)
+            self.session.logger.log('nick change', e3status, nick,
+                log_account)
+
+        if old_media != media:
+            self.session.add_event(e3.Event.EVENT_CONTACT_ATTR_CHANGED, user,
+                'media', old_media)
+
+        #print "OLD: "+str(old_avatar)
+        #print "NEW: "+str(avatar_path)
+
+        if old_avatar != avatar_path:
+            if avatar != '-':
+                print "AVATAR : "+str(avatar_path)
+                
+                ihave = 0
+
+                if os.path.exists(avatar_path):
+                    print "EXIST"
+                    ihave = 1
+                else:
+                    print "DOWNLOADDING"
+                    avatar_raw = self.eclient.retrieveAvatar ( user )
+
+                    #avatar_caches = e3.cache.AvatarCache(self.session.config_dir.base_dir, self.session.account.account)
+
+                    #if ( avatar_raw != None ): time_, ava_md5 = avatar_caches.insert_raw( avatar_raw )
+
+                    if ( avatar_raw != None ):
+                        ava_path = os.path.join( self.caches.get_avatar_cache( user ).path , avatar+".tmp")
+                        handle = file(ava_path, 'w')
+                        handle.write(avatar_raw.read())
+                        handle.close()
+
+                        avatar_caches = e3.cache.AvatarCache(self.session.config_dir.base_dir, user)
+                        time_, ava_md5 = avatar_caches.insert( ava_path )
+                        ihave = 1
+
+                if ihave == 1:
+                    print "SETTING"
+                    contactOb.picture = avatar_path
+                    self.session.add_event( e3.Event.EVENT_PICTURE_CHANGE_SUCCEED, user, avatar_path )
 
     # action handlers
     def _handle_action_add_contact(self, account):
@@ -258,141 +394,7 @@ class Worker(e3.Worker):
                 self.session.add_event(e3.Event.EVENT_LOGIN_FAILED, )
 
 
-    def _eclient_login_info (self, info ):
-        self.session.add_event(e3.Event.EVENT_LOGIN_INFO, info)
 
-    def _eclient_refresh_contact (self, contact_info ):
-
-        if self.debug>1: print "[worker] Refresh contact: "+contact_info['user']
-
-        status = contact_info['status']
-        user = contact_info['user']
-        subnick = contact_info['subnick']
-        nick = contact_info['nick']
-        avatar = contact_info['avatar']
-
-        currentStamp = self.eclient.getStamp ()
-
-        dif = currentStamp - int (contact_info['stamp'])
-
-        if self.debug>1: print "CurrentStamp: "+str(currentStamp)+", ContactStamp: "+str(contact_info['stamp'])+" Dif: "+str ( dif )
-
-        if dif > 30:
-            status = e3.status.OFFLINE
-
-        if ( int (contact_info['stamp']) == 0 ):
-            status = e3.status.OFFLINE
-
-        self.contacts[ user ] = contact_info
-
-        if status == eclient.status.OFFLINE:
-            change_type = 'offline'
-        else:
-            change_type = 'online'
-
-        if self.debug>1: print "Status: "+str(status)
-
-        if status == eclient.status.ONLINE:
-            e3status = e3.status.ONLINE
-        elif status == eclient.status.BUSY:
-            e3status = e3.status.BUSY
-        elif status == eclient.status.AWAY:
-            e3status = e3.status.AWAY
-        elif status == eclient.status.IDLE:
-            e3status = e3.status.IDLE
-        else:
-            e3status = e3.status.OFFLINE
-
-        #old_status = e3.status.OFFLINE
-        #status = e3.status.ONLINE
-
-        contactOb = self.session.contacts.contacts.get( user , None)
-
-        avatars = self.caches.get_avatar_cache( user )
-        avatar_path = os.path.join(avatars.path, avatar)
-
-        old_e3status = contactOb.status
-        old_subnick = contactOb.message
-        old_nick = contactOb.nick
-        old_avatar = contactOb.picture
-        old_media = 'Old'
-        media = 'New'
-
-        contactOb.status = e3status
-        contactOb.message = subnick
-        contactOb.nick = nick
-        contactOb.media = media
-
-        if self.debug>1: print "[worker] Offline="+str(e3.status.OFFLINE)+", Changetipe="+change_type+", Old status: "+str(old_e3status)+", New: "+str(e3status)
-
-        log_account =  e3.Logger.Account(contactOb.attrs.get('CID', None), None,
-            contactOb.account, contactOb.status, contactOb.nick, contactOb.message,
-            contactOb.picture)
-
-        #str(old_status)
-        if old_e3status != e3status:
-            if self.debug>0: print "[worker] Changing Status"
-
-            start_time = 1
-
-            do_notify = (start_time + Worker.NOTIFICATION_DELAY) < time.time()
-
-            self.session.add_event(e3.Event.EVENT_CONTACT_ATTR_CHANGED, user, change_type, old_e3status, do_notify)
-            self.session.logger.log('status change', e3status, str(e3status),
-                log_account)
-
-        if old_subnick != subnick:
-            if self.debug>0: print "[worker] Changing Subnick: "+subnick
-            self.session.add_event(e3.Event.EVENT_CONTACT_ATTR_CHANGED, user,
-                'message', old_subnick)
-            self.session.logger.log('message change', e3status,
-                subnick, log_account)
-
-        if old_nick != nick:
-            if self.debug>0: print "[worker] Changing Nick: "+nick
-            self.session.add_event(e3.Event.EVENT_CONTACT_ATTR_CHANGED, user,
-                'nick', old_nick)
-            self.session.logger.log('nick change', e3status, nick,
-                log_account)
-
-        if old_media != media:
-            self.session.add_event(e3.Event.EVENT_CONTACT_ATTR_CHANGED, user,
-                'media', old_media)
-
-        #print "OLD: "+str(old_avatar)
-        #print "NEW: "+str(avatar_path)
-
-        if old_avatar != avatar_path:
-            if avatar != '-':
-                print "AVATAR : "+str(avatar_path)
-                
-                ihave = 0
-
-                if os.path.exists(avatar_path):
-                    print "EXIST"
-                    ihave = 1
-                else:
-                    print "DOWNLOADDING"
-                    avatar_raw = self.eclient.retrieveAvatar ( user )
-
-                    #avatar_caches = e3.cache.AvatarCache(self.session.config_dir.base_dir, self.session.account.account)
-
-                    #if ( avatar_raw != None ): time_, ava_md5 = avatar_caches.insert_raw( avatar_raw )
-
-                    if ( avatar_raw != None ):
-                        ava_path = os.path.join( self.caches.get_avatar_cache( user ).path , avatar+".tmp")
-                        handle = file(ava_path, 'w')
-                        handle.write(avatar_raw.read())
-                        handle.close()
-
-                        avatar_caches = e3.cache.AvatarCache(self.session.config_dir.base_dir, user)
-                        time_, ava_md5 = avatar_caches.insert( ava_path )
-                        ihave = 1
-
-                if ihave == 1:
-                    print "SETTING"
-                    contactOb.picture = avatar_path
-                    self.session.add_event( e3.Event.EVENT_PICTURE_CHANGE_SUCCEED, user, avatar_path )
 
 
     def _handle_action_logout(self):
