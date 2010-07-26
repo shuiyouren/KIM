@@ -1,4 +1,24 @@
+''' EServer's worker - an emesene extension for eclient library '''
 # -*- coding: utf-8 -*-
+#
+# papylib - an emesene extension for papyon
+#
+# Copyright (C) 2009 Gabriel Caraballo (Eibriel) <eibriel@yahoo.com>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
 import sys
 import time
 import Queue
@@ -40,22 +60,22 @@ class Worker(e3.Worker):
         #self.caches = e3.cache.CacheManager(self.session.config_dir.base_dir)
 
     def run(self):
-			'''main method, block waiting for data, process it, and send data back
-			'''
-			data = None
+        '''main method, block waiting for data, process it, and send data back
+        '''
+        data = None
 
-			while True:
-				try:
-					action = self.session.actions.get(True, 0.1)
+        while True:
+            try:
+                action = self.session.actions.get(True, 0.1)
 
-					if action.id_ == e3.Action.ACTION_QUIT:
-							log.debug('closing thread')
-							self.session.logger.quit()
-							break
+                if action.id_ == e3.Action.ACTION_QUIT:
+                    log.debug('closing thread')
+                    self.session.logger.quit()
+                    break
 
-					self._process_action(action)
-				except Queue.Empty:
-					pass
+                self._process_action(action)
+            except Queue.Empty:
+                pass
 
 
     def _fill_contact_list(self, doc):
@@ -116,7 +136,10 @@ class Worker(e3.Worker):
         self.session.contacts.contacts[account].groups.append(group)
 
     def _eclient_login_info (self, info ):
-        self.session.add_event(e3.Event.EVENT_LOGIN_INFO, info)
+        if info==0:
+            self.session.add_event(e3.Event.EVENT_LOGIN_INFO, 'Requesting Suid...')
+        if info==1:
+            self.session.add_event(e3.Event.EVENT_LOGIN_INFO, 'Suid received...')
 
     def _eclient_refresh_contact (self, contact_info ):
 
@@ -314,6 +337,7 @@ class Worker(e3.Worker):
 
 
         self.eclient = eclient.client ( account, password, host, port )
+        self.eclient.store_.setDir ( self.session.config_dir.base_dir )
 
         self.eclient.debug = self.debug
         self.eclient.frequency = self.frequency
@@ -338,12 +362,12 @@ class Worker(e3.Worker):
         '''
 
         if self.eclient.login( estatus, self._eclient_login_info ):
-            '''
+            if self.debug>0:  print "[login] COMPLETE ======================================="
             nick =self.eclient.getNick()
             subnick = self.eclient.getSubnick()
             avatar = self.eclient.getAvatar()
             self.session.add_event(e3.Event.EVENT_LOGIN_SUCCEED)
-            
+            '''
             self._add_group('friends')
             contactStatus=e3.status.OFFLINE
 
@@ -360,7 +384,7 @@ class Worker(e3.Worker):
             if self.debug>0:  print "[login] OPENPORT"
 
             self.eclient.open_listenport ( self.port, 20, 10 )
-
+            '''
             self.session.account.status = status_
             self.session.contacts.me.status = status_
             self.session.add_event(e3.Event.EVENT_STATUS_CHANGE_SUCCEED, status_)
@@ -369,7 +393,7 @@ class Worker(e3.Worker):
             self.session.contacts.me.nick = nick
             self.session.add_event(e3.Event.EVENT_MESSAGE_CHANGE_SUCCEED, subnick)
             self.session.contacts.me.message = subnick
-
+            '''
             if self.debug>0:  print "[login] OK"
             self.contacts = self.eclient.getContactList()
             '''

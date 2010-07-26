@@ -4,20 +4,23 @@ from rc4 import rc4
 
 class login:
     "Login with the Emsene server"
-    def __init__(self, user, password, host, debug=0, info_function=None):
-        self.user = user
-        self.password = password
-        self.host = host
-        self.debug = debug
-        self.info_function = info_function
+    def __init__(self):
+        self.user = "test1"
+        self.password = "test1"
+        self.host = "www.eibriel.com"
+        self.debug = 1
+        #self.info_function = info_function
+
+        debug = self.debug
 
         if debug>0:  print "[login] Initializing"
 
-        self.info_function ( 0 )
+        #self.info_function ( 0 )
         passphrase = self._stepOne ()
 
         if not self.error_: suid = self._stepTwo ( passphrase )
-        self.info_function ( 1 )
+        #if debug>0:  print "[login] --Suid : %s" % suid
+        #self.info_function ( 1 )
 
     def _stepOne (self):
 
@@ -27,12 +30,26 @@ class login:
 
         if debug>0:  print "[login] -Step One User: %s Host: %s" % (user, host)
 
-        params = urllib.urlencode({'user': user, 'request': 'login'})
+        req = '''<input>
+<erequests>
+  <erequest type="auth_node">
+  <body>
+   <subtype>step1</subtype>
+   <user>test1</user>
+  </body>
+  </erequest>
+ </erequests>
+</input>'''
+
+        params = urllib.urlencode({'erequest': req })
         response = self._http_send ( host, params)
         if response:
             doc = self._get_xml ( response.read() )
             if doc:
-
+                print doc.toxml ()
+                if len(doc.getElementsByTagName('eresponse')) == 0 :
+                    self.error_ = error.AUTH
+                    return 0
                 epassphrase = doc.getElementsByTagName('epassphrase')[0].firstChild.nodeValue
 
                 if debug>0:  print "[login] -Epassphrase: %s" % epassphrase
@@ -79,7 +96,7 @@ class login:
             doc.unlink()
         else:
             self.error_ = error.CONN
-            if debug>0:  print "[login] CONN ERR 3 %s" % response.reason
+            if debug>0 and response != 0:  print "[login] CONN ERR 3 %s" % response.reason
             return 0
         return passphrase
 
@@ -95,21 +112,34 @@ class login:
 
         if debug>0:  print "[login] --Passphrase MD5: %s" % pass_md5
 
-        params = urllib.urlencode({'user': user, 'request': 'suid', 'passphrase_md5':pass_md5})
+        req = '''<input>
+<erequests>
+  <erequest type="auth_node">
+  <body>
+   <subtype>step2</subtype>
+   <user>test1</user>
+   <passphrase_md5>'''+pass_md5+'''</passphrase_md5>
+  </body>
+  </erequest>
+ </erequests>
+</input>'''
+
+        params = urllib.urlencode({'erequest': req})
         response = self._http_send ( host, params)
         if response:
             doc = self._get_xml ( response.read() )
+            print doc.toxml ()
             if doc:
-                esuid = doc.getElementsByTagName('esuid')[0].firstChild.nodeValue
+                esuid = str(doc.getElementsByTagName('esuid')[0].firstChild.nodeValue)
                 if debug>0:  print "[login] --Esuid : %s" % esuid
-
+                #if debug>0:  print "[login] --passphrase : %s" % passphrase
                 encrypter = rc4 ()
                 k = encrypter.initialize ( passphrase )
                 bin = binascii.unhexlify( esuid )
 
-                if debug>0:  print "[login] ---Esuid_bin : %s" % bin
+                #if debug>0:  print "[login] ---Esuid_bin : %s" % bin
 
-                suid = encrypter.run_rc4(k, bin, 1)
+                suid = encrypter.run_rc4(k, bin)
                 #if debug>0:  print "[login] ---Suid_64 : %s" % suid_64
 
                 #suid = base64.b64decode ( suid_64 )
@@ -120,12 +150,13 @@ class login:
         debug = self.debug
 
         try:
-            serverconn = httplib.HTTPConnection( host , 80, 10)
-            serverconn.request("GET", '/eserver/connection/?%s' % params)
+            serverconn = httplib.HTTPConnection( host, 80, 10)
+            headers = {"Content-type": "application/x-www-form-urlencoded","Accept": "text/plain"}
+            serverconn.request("POST", '/eserver/index-sample.php', params, headers)
         except:
             self.error_ = error.CONN
             if debug>0:  print "[login] CONN ERR 1"
-            return
+            return 0
         else:
             try:
                 response = serverconn.getresponse()
@@ -133,13 +164,18 @@ class login:
                 self.error_ = error.CONN
                 if debug>0:  print "[login] CONN ERR 2"
                 serverconn.close()
-                return
+                return 0
             serverconn.close()
 
             if response.reason=="OK":
                 return response
+            else:
+                self.error_ = error.CONN
+                return response
 
     def _get_xml ( self, data):
+        debug = self.debug
+
         try:
             doc = xml.dom.minidom.parseString( data )
         except:
@@ -147,8 +183,9 @@ class login:
             if debug>0:  print "[login] DATA ERR %s" % data
             return
         else:
-            error_ = doc.getElementsByTagName('error')[0].firstChild.nodeValue
+            #error_ = doc.getElementsByTagName('status')[0].firstChild.nodeValue
+            error_ = 'ok'
             if error_ == 'ok':
                 return doc
 
-
+log = login ()

@@ -5,6 +5,7 @@ from listen import listen
 from refresh import refresh
 from http import http
 from login import login
+from store import store
 from cStringIO import StringIO
 
 class client:
@@ -15,7 +16,8 @@ class client:
         self.password = password
         self.host = host
         self.port = port
-        self.cerror = None
+        self.error_ = None
+        self.store_=store ()
 
         '''
         self.contacts = {}
@@ -45,7 +47,9 @@ class client:
         
 
     def login ( self, initstatus, info_function ):
-        elogin = login ( self.user, self.password, self.host, self.debug)
+        elogin = login ( self.user, self.password, self.host, self.debug, info_function)
+        if not elogin.error_:
+            return 1
 
 
     def open_listenport ( self, port, maxconn, timeout ):
@@ -126,35 +130,38 @@ class client:
                 doc = xml.dom.minidom.parseString( response.read() )
             except:
                 if self.debug>0:  print " [setnick] DATA ERR"
-                self.cerror = error.DATA
+                self.error_ = error.DATA
                 return 0
             else:
                 error_ = doc.getElementsByTagName('error')[0].firstChild.nodeValue
                 if error_ == 'ok':
                     if self.debug>0:  print " [setnick] OK"
-                    self.cerror = None
+                    self.error_ = None
                     doc.unlink()
                     return 1
                 else:
-                    self.cerror = error.AUTH
+                    self.error_ = error.AUTH
                     if self.debug>0:  print " [setnick] AUTH ERR"
                     doc.unlink()
                     return 0
 
     def getError (self):
-        return self.cerror
+        return self.error_
 
     def getContactList (self):
         return self.contacts
 
     def getNick (self):
-        return self.nick
+        nick = self.store_.getData ( 'nick' ) ;
+        return nick
 
     def getSubnick (self):
-        return self.subnick
+        subnick = self.store_.getData ( 'subnick' ) ;
+        return subnick
 
     def getAvatar (self):
-        return self.avatar
+        #return self.avatar
+        return 'Avatar'
 
     def getStamp (self):
         return int ( self.stamp )
@@ -176,7 +183,7 @@ class client:
                 retry = 0
 
         #except:
-        #    self.cerror = error.CONN
+        #    self.error_ = error.CONN
         #    if self.debug>0:  print " [setnick] CONN ERR"
         #    return 0
 
@@ -188,17 +195,17 @@ class client:
                 doc = xml.dom.minidom.parseString( response.read() )
             except:
                 if self.debug>0:  print "  [set] DATA ERR"
-                self.cerror = error.DATA
+                self.error_ = error.DATA
                 return 0
             else:
                 error_ = doc.getElementsByTagName('error')[0].firstChild.nodeValue
                 if error_ == 'ok':
                     if self.debug>0:  print "  [set] OK"
-                    self.cerror = None
+                    self.error_ = None
                     doc.unlink()
                     return 1
                 else:
-                    self.cerror = error.AUTH
+                    self.error_ = error.AUTH
                     if self.debug>0:  print "  [set] AUTH ERR"
                     doc.unlink()
                     return 0
@@ -211,8 +218,7 @@ class client:
             
     def setSubnick (self, subnick):
         if self.debug>0:  print "SETSUBNICK"
-        params = urllib.urlencode({'user': self.user, 'password': self.password, 'request': 'setsubnick', 'subnick': subnick})
-        return self.setSomething ( params )
+        return self.setData ( ( 'user', 'subnick' ), subnick )
 
     def setAvatar (self, avatar):
         if self.debug>0:  print "SETAVATAR"
