@@ -46,7 +46,7 @@ class login:
         if response:
             doc = self._get_xml ( response.read() )
             if doc:
-                print doc.toxml ()
+                #print doc.toxml ()
                 if len(doc.getElementsByTagName('eresponse')) == 0 :
                     self.error_ = error.AUTH
                     return 0
@@ -128,7 +128,7 @@ class login:
         response = self._http_send ( host, params)
         if response:
             doc = self._get_xml ( response.read() )
-            print doc.toxml ()
+            #print doc.toxml ()
             if doc:
                 esuid = str(doc.getElementsByTagName('esuid')[0].firstChild.nodeValue)
                 if debug>0:  print "[login] --Esuid : %s" % esuid
