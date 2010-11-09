@@ -126,7 +126,7 @@ class supernodeListen(threading.Thread):
     
     def sendMessage (self, from_, to, body, type_ ):
         print "Sending Message"
-        self.connection.send( 'message' )
+        self.connection.send( '< message from="%s" to="%s" type="%s">%s</message>' % (from_, to, type_, body )
     
     def send (self, data):
         self.connection.send( data )

@@ -98,14 +98,32 @@ class serverAuth:
             self.lastcont = None
             print "Connecting"
             self.socket = socket(AF_INET, SOCK_STREAM)
-            self.socket.connect((self.host, self.port))
+            try:
+                self.socket.connect((self.host, self.port))
+            except:
+                return
             print "Connected to Server"
+            
         def send (self, data):
             while self.socket == None:
                 #wait
                 h=1
-            self.socket.send ( data )
+            try:
+                self.socket.send ( data )
+            except:
+                return False
+            return True
+            
         def recv ( self, cache ):
-            return self.socket.recv( cache)
+            try:
+                ret = self.socket.recv( cache)
+            except:
+                return False
+            return ret
+            
         def close (self):
-            self.socket.close()
+            try:
+                self.socket.close()
+            except:
+                return False
+            return True

@@ -14,6 +14,7 @@ class supernodeListening (threading.Thread):
         self.sessionid = sessionid
         self.running = True
         self.connect_a = set ()
+        self.notificationFunction = None
         #self.onMessage = None
     def run (self):
         s = socket(AF_INET, SOCK_STREAM)
@@ -46,6 +47,14 @@ class supernodeListening (threading.Thread):
             if conn.username == to:
                 print "Match!"
                 conn.sendMessage ( from_, to, body, type_ )
+    
+    def onNotification ( self, notificationFunction ):
+        self.notificationFunction = notificationFunction
+        #self.listening.notificationFunction = notificationFunction
+        
+    def notify ( self, note ):
+        if self.notificationFunction != None:
+            self.notificationFunction ( note )
     
     def stop (self):
         print "serverListenning STOP (running False)"

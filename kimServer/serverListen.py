@@ -2,6 +2,7 @@ from socket import *
 import threading
 import xml.parsers.expat
 import time
+import string
 
 class Listen(threading.Thread):
     def __init__(self, connection, server_name ):
@@ -56,7 +57,7 @@ class Listen(threading.Thread):
                 if ( name == 'iq'):
                     self.queryId = attrs['id']
                     self.type_ =  attrs['type']
-                    if self.type == 'ping'
+                    if self.type_ == 'ping':
                         self.done = True
                         self.result = ""
                 if ( name == 'query'):
@@ -81,12 +82,12 @@ class Listen(threading.Thread):
                 #print 'Character data:', repr(data)
             
             
-            #print "Data: %s" % data
+            print "Data: %s" % data
             #data = "%s</stream:stream>" % data
             #p.Parse(data,1)
             
-            '''
-            p = xml.parsers.expat.ParserCreate()
+            
+            '''p = xml.parsers.expat.ParserCreate()
             p.StartElementHandler = start_element
             p.EndElementHandler = end_element
             p.CharacterDataHandler = char_data
@@ -100,19 +101,19 @@ class Listen(threading.Thread):
                 p.Parse(data,1)
             except:
                 data = "%s</stream:stream>" % data
-            try:
-                p = xml.parsers.expat.ParserCreate()
-                p.StartElementHandler = start_element
-                p.EndElementHandler = end_element
-                p.CharacterDataHandler = char_data
-                p.Parse(data,1)
-            except:
-                print "ERRORRRRRR"
-                if self.sessionid == None:
-                    self.running = False
-                    #self.father.running = False
-                    #KILL = True
-                    #print 'Data: %s' % data
+                try:
+                    p = xml.parsers.expat.ParserCreate()
+                    p.StartElementHandler = start_element
+                    p.EndElementHandler = end_element
+                    p.CharacterDataHandler = char_data
+                    p.Parse(data,1)
+                except:
+                    print "ERRORRRRRR"
+                    if self.sessionid == None:
+                        self.running = False
+                        #self.father.running = False
+                        #KILL = True
+                        #print 'Data: %s' % data
 
             if self.do == 'auth':
                 if self.conntype == 'node':
